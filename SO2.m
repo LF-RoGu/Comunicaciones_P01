@@ -2,84 +2,59 @@
 
 close all; clc; clear;
 
+%% Transmicion analogica
 filename= 'Never_Gonna.wav';
-
-fir_order = 100;
 Fs_audio = 44100;
-Ts_audio = 1/Fs_audio;
-t = 10; %t = 10 seconds
-
-samples = [1,t*Fs_audio];
-
-[x,Fs] = audioread(filename,samples);   %obtencion del archivo wav
-
+sec = 10;
+samples = [1,sec*Fs_audio];
+[x,Fs] = audioread(filename,samples);   %obtencion del archivo wav 
 info = audioinfo(filename);
 
-info_bps = info.BitsPerSample; %info_bps (info_bits per sample)
-
-    %Signal to Mono
+%% Pasar a señal mono 
 xMono = (x(:,1)+ x(:,2))/2;
 
 %% Filtrar la señal 
-    %LPF Comunication Channel  
+%LPF 15 kHz
+fc = 15000 / (Fs_audio/2);
 B = 15e3;
-Fc = B / (Fs_audio/2);
-
-fc_15KHz = [0 Fc Fc 1];
+fc_15KHz = [0 fc fc 1];
 m = [1 1 0 0];
-orden = fir_order;
-LPF = fir2(orden, fc_15KHz, m); % LPF (Low Pass Filter)
-%fvtool(LPF, 'Analysis', 'impulse');
-xa = filter(LPF, 1, xMono); %señal analogica filtrada
-    % If mean it is equal to ZERO
-if 1 == mean(xa)
-    % Then we can assume that the variation is the P
-    var(xa)
-end
-P_signal = var(xa); %verificar la potencia 
-%% Normalize the Power
-    % Calculate the power
+orden = 100;
+LPF_15KHz = fir2(orden, fc_15KHz, m);
+%%fvtool(LPF_15KHz, 'Analysis', 'impulse');
+xa = filter(LPF_15KHz, 1, xMono); %señal analogica filtrada
+%mean(xa) componente de directa
+%min(xa)
+%max(xa) %entre -1 y 1 v
+%pwelch(xa)
+
+%% Normalizacion de la potencia 
+%calcular la potencia
 pot = sum(xa.*xa)/numel(xa);
 xa = xa/sqrt(pot);
-    % check if the power of the signal
-    % If mean it is equal to ZERO
-if 0 == mean(xa)
-   % Then we can assume that the variation is the P
-   var(xa)
-end
-    % At this point must be equal to 1
 P_signal = var(xa); %verificar la potencia 
+
 %% SNR
+B =15e3 ; % Ancho de Banda del filtro receptor
 N0 = 1./(B.*10.^(0:0.3:3)); % Vector PSD del ruido
 P_noise = B*N0; % Vector de Pot del Ruido Filtrado
 P_noise_dB = 10.*log10(P_noise); % Pot. Ruido en Decibeles
 SNR_A = P_signal ./ P_noise; % Relacion Señal a Ruido
 SNR_A_dB = 10*log10(SNR_A); % SNR en dB
 
-%% AWGN (White noise all frequency)
-for i = 1 : numel(N0)
-    % noise samples
-    noise = sqrt(P_noise(i)) * randn(1, numel(xa)); 
-    
-    P_noise(i) = (sum(noise.*noise))/numel(noise);
-    % Signal to Noise Relation
-    SNR_A(i) = P_signal(1)./P_noise(1); 
-    % SNR in dB
-    SNR_A_dB(i) = 10*log10(SNR_A(i));
-end  
+%ruido AWGN 
+for i=1:length(N0)
+noise = sqrt(P_noise(i)) * randn(size(xa)); %Muestras de ruido
+xa_noised = xa + noise; 
+xa_noised = xa_noised ./ max(abs(xa_noised));%normalizar entre 1 y -1
 
-    % Add up noise to the signal
-xa_noised = xa + noise';
-    % Normilized the signal between 1 & -1
-xa_noised = xa_noised ./ max(abs(xa_noised));
-
-filename = strcat('AnalogSignal_', num2str(i), '_', num2str(round(SNR_A_dB(i)), 4), 'dB','.wav');
+filename = strcat('AnalogSignal_P1_', num2str(i), '_', num2str(round(SNR_A_dB(i)), 4), 'dB','.wav');
 audiowrite(filename, xa_noised, Fs); %obtencion del archivo 
-%% Reproduce sound
-%soundsc(xa_noised,Fs_audio);
+end 
+soundsc(xa_noised,Fs_audio);
 
-%% Digital Transmition
-    %Source: https://www.mathworks.com/matlabcentral/answers/75379-how-to-convert-an-input-sine-wave-into-an-8-bit-digital-signal
+%% señal digital 
+ %Source: https://www.mathworks.com/matlabcentral/answers/75379-how-to-convert-an-input-sine-wave-into-an-8-bit-digital-signal
     %Source: https://www.mathworks.com/matlabcentral/answers/103315-how-to-convert-digital-data-into-analog-data-using-matlab-code
     % Convert values from xa_noised to bin
 
@@ -98,4 +73,3 @@ b = de2bi(xa2bi,info_bps,'left-msb');
     %Transponse operation
 b = b';
 
-bits_rx = b(:); %Concatena el resto de bits, para que sea un solo vector
