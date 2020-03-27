@@ -82,17 +82,9 @@ audiowrite(filename, xa_noised, Fs); %obtencion del archivo
     %Source: https://www.mathworks.com/matlabcentral/answers/75379-how-to-convert-an-input-sine-wave-into-an-8-bit-digital-signal
     %Source: https://www.mathworks.com/matlabcentral/answers/103315-how-to-convert-digital-data-into-analog-data-using-matlab-code
     % Convert values from xa_noised to bin
+level
 
-M = 2^info_bps - 1;
-
-level = max(xa_noised);
-level = level/M;
-
-step = level;
-
-data = abs(xa_noised);
-
-xa2bi = fix(data/step);
+xa2bi = round(xa_noised*q+q);
     %For Default it is the 'right-msb'
 b = de2bi(xa2bi,info_bps,'left-msb');
     %Transponse operation
