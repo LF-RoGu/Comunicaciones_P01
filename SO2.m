@@ -76,7 +76,7 @@ for i = 1 : numel(N0)
     audiowrite(filename, xa_noised, Fs); %obtencion del archivo 
 end  
 %% Reproduce sound
-%soundsc(xa_noised,Fs_audio);
+%soundsc(xMono,Fs_audio);
 
 %% Digital Transmition
     %Source: https://www.mathworks.com/matlabcentral/answers/75379-how-to-convert-an-input-sine-wave-into-an-8-bit-digital-signal
@@ -138,7 +138,7 @@ P_PSLC_d = var(PSLC);
 %match filter
 %for the match filter we used the same form of the base pulse (SRRC)
 
-[h_srrc t] = rcpulse(Beta,D,Tp,Ts,'srrc',energy);
+[h_srrc t] = rcpulse(beta,D,Tp,Ts,'srrc',energy);
 hsrrc_energy = Ts*sum(h_srrc.*h_srrc);
 h_srrc = h_srrc/sqrt(hsrrc_energy); %normalized power of the filter
 
@@ -159,20 +159,81 @@ for i = 1 : numel(N0)
 
 %figure; stem(PSLC(1:mp*10));
 
-PRS_rx = conv(LPF,PSLC_noised); %PSRS (Polar Received Signal)
+    PRS_rx = conv(LPF,PSLC_noised); %PSRS (Polar Received Signal)
 %%figure; pwelch(PRS_rx,500,300,500,Fs,'power'); title('Polar Fc 0.6803');
 
 %%figure; plot(PSLC(1:mp*20)); hold on; plot(PRS_rx(1:mp*20));
 
     %filtered the recieved line code in the match filter
- match_filter_recived = conv(h_srrc,PRS_rx);
+    match_filter_recived = conv(h_srrc,PRS_rx);
     
     %make the sampling and desition of the line code recived
  % Tenemos order/2 + y - por el retardo del order del filtro
 % Take a sample each mp/2 in time domain to recover the data
-rx_match_filter = match_filter_recived( ( mp/2 + ((order/2)+(numel(p)/2)) : mp : (end - ((order/2)+(numel(p)/2)))));
+    rx_match_filter = match_filter_recived( ( mp/2 + ((order/2)+(numel(p)/2)) : mp : (end - ((order/2)+(numel(p)/2)))));
 
 %en este punto, se obtiene la información recivada y pasada por el filtro
 %que emula el canal y el match filter (recepcion) 
+%% 
+    audio_rx = sign(rx_match_filter); %Obtenemos valores entre 1 y -1 del arreglo
 
-end 
+    bits_rx = (audio_rx+1)/2; %Normalizamos para que los valores sean 1 o 0
+
+    bits_rx = bits_rx(4:end - 3);
+    bits_rx = bits_rx';
+
+    error = (sum( xor(bits_tx,bits_rx) ) / numel(bits_rx))*100;
+
+%Convert vector to mat
+    mat = vec2mat(bits_rx,16);
+%Convert mat to dec
+    audio_bin2dec = bi2de(mat,'left-msb');
+
+    audio_mat = vec2mat(audio_bin2dec, 1 , Fs_audio);
+
+%Normilize audio between 1 & -1
+    %audio_mat = 2*mat2gray(audio_mat) - 1;
+    audio_file = normalize(audio_mat, 'range', [-1 1]);
+
+    filename = strcat('AnalogSignalRx_', num2str(i), '_', num2str(round(SNR_A_dB(i)), 4), 'dB','.wav');
+    audiowrite(filename, audio_file, Fs_audio); %obtencion del archivo 
+
+end
+
+%%
+%figure; plot(PSLC_noised(1:mp*50));
+%figure; plot(match_filter_recived(1:mp*50));
+%figure; plot(rx_match_filter(1:mp*50));
+
+%% Eye Pattern
+
+EP = comm.EyeDiagram('SampleRate',Fs*mp,'SamplesPerSymbol',mp);
+
+match_filter_recived = match_filter_recived';
+
+%Eye Pattern Received Signal
+EP(match_filter_recived);
+
+%% 
+
+audio_rx = sign(rx_match_filter); %Obtenemos valores entre 1 y -1 del arreglo
+
+bits_rx = (audio_rx+1)/2; %Normalizamos para que los valores sean 1 o 0
+
+bits_rx = bits_rx(4:end - 3);
+bits_rx = bits_rx';
+
+error = (sum( xor(bits_tx,bits_rx) ) / numel(bits_rx))*100;
+
+%Convert vector to mat
+mat = vec2mat(bits_rx,16);
+%Convert mat to dec
+audio_bin2dec = bi2de(mat,'left-msb');
+
+audio_mat = vec2mat(audio_bin2dec, 1 , Fs_audio);
+
+%Normilize audio between 1 & -1
+%audio_mat = 2*mat2gray(audio_mat) - 1;
+audio_mat = normalize(audio_mat, 'range', [-1 1]);
+%% Reproduce sound
+%soundsc(audio_file,Fs_audio);
