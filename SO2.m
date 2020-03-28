@@ -110,7 +110,7 @@ energy = Tp;
 
 p_energy = Ts*sum(p.*p);
 
-p = p/sqrt(p_energy);
+p = p/sqrt(p_energy); 
 
 %wvtool(p);
 
@@ -128,17 +128,51 @@ s(1:mp:end) = PS_s;
 PSLC = conv(s, PBP) / mp; %PSLC (Polar Signal Line Code)
     %Normilize pulse
 PSLC = PSLC/sqrt( sum(PSLC.*PSLC)/numel(PSLC) );
+P_PSLC_d = var(PSLC);
+%% Add noise to Line Code 
 
-figure; stem(PSLC(1:mp*10));
+% AWGN (White noise all frequency) 
+%generate noise vector and add to polar NRZ line code with SRRC as pulse
+%base
 
-PRS_rx = conv(LPF,PSLC); %PSRS (Polar Received Signal)
-figure; pwelch(PRS_rx,500,300,500,Fs,'power'); title('Polar Fc 0.6803');
+%match filter
+%for the match filter we used the same form of the base pulse (SRRC)
 
-figure; plot(PSLC(1:mp*20)); hold on; plot(PRS_rx(1:mp*20));
+[h_srrc t] = rcpulse(Beta,D,Tp,Ts,'srrc',energy);
+hsrrc_energy = Ts*sum(h_srrc.*h_srrc);
+h_srrc = h_srrc/sqrt(hsrrc_energy); %normalized power of the filter
 
-% Tenemos order/2 + y - por el retardo del order del filtro
+for i = 1 : numel(N0)
+    % noise samples
+    noise = sqrt(P_noise(i)) * randn(1, numel(PSLC)); %created noise vector
+    
+    P_noise(i) = (sum(noise.*noise))/numel(noise);  %power of the noise 
+    % Signal to Noise Relation
+    SNR_D(i) = P_PSLC_d(1)./P_noise(1);     %Signal to noise ratio 
+    % SNR in dB
+    SNR_D_dB(i) = 10*log10(SNR_D(i));       %signal to niose ratio in dB 
+    
+    % Add up noise to the signal
+    PSLC_noised = PSLC + noise;
+    
+    % filtered line code + noise with the 15kh LPF
+
+%figure; stem(PSLC(1:mp*10));
+
+PRS_rx = conv(LPF,PSLC_noised); %PSRS (Polar Received Signal)
+%%figure; pwelch(PRS_rx,500,300,500,Fs,'power'); title('Polar Fc 0.6803');
+
+%%figure; plot(PSLC(1:mp*20)); hold on; plot(PRS_rx(1:mp*20));
+
+    %filtered the recieved line code in the match filter
+ match_filter_recived = conv(h_srrc,PRS_rx);
+    
+    %make the sampling and desition of the line code recived
+ % Tenemos order/2 + y - por el retardo del order del filtro
 % Take a sample each mp/2 in time domain to recover the data
-rx_PRS = PRS_rx( ( mp/2 + (order/2) ) : mp : (end - (order/2) - (mp/2)) );
-scatterplot(rx_PRS);
+rx_match_filter = match_filter_recived( ( mp/2 + ((order/2)+(numel(p)/2)) : mp : (end - ((order/2)+(numel(p)/2)))));
 
-%After this we realized we need a delay for the samples
+%en este punto, se obtiene la información recivada y pasada por el filtro
+%que emula el canal y el match filter (recepcion) 
+
+end 
