@@ -61,12 +61,6 @@ for i = 1 : numel(N0)
     % noise samples
     noise = sqrt(P_noise(i)) * randn(1, numel(xa)); 
     
-    P_noise(i) = (sum(noise.*noise))/numel(noise);
-    % Signal to Noise Relation
-    SNR_A(i) = P_signal(1)./P_noise(1); 
-    % SNR in dB
-    SNR_A_dB(i) = 10*log10(SNR_A(i));
-    
         % Add up noise to the signal
     xa_noised = xa + noise';
         % Normilized the signal between 1 & -1
@@ -125,10 +119,19 @@ s = zeros(1,numel(PS_s)*mp);
 
 s(1:mp:end) = PS_s;
 
-PSLC = conv(s, PBP) / mp; %PSLC (Polar Signal Line Code)
+PSLC = conv(PBP, s) / mp; %PSLC (Polar Signal Line Code)
     %Normilize pulse
 PSLC = PSLC/sqrt( sum(PSLC.*PSLC)/numel(PSLC) );
 P_PSLC_d = var(PSLC);
+
+
+%% SNR Digital 
+N0 = 1./(B.*10.^(0:0.3:3)); % Vector PSD del ruido
+P_noise_d = B*N0; % Vector de Pot del Ruido Filtrado
+P_noise_dB_d = 10.*log10(P_noise_d); % Pot. Ruido en Decibeles
+SNR_D = P_PSLC_d ./ P_noise_d; % Relacion Señal a Ruido
+SNR_D_dB = 10*log10(SNR_D); % SNR en dB
+
 %% Add noise to Line Code 
 
 % AWGN (White noise all frequency) 
@@ -145,12 +148,6 @@ h_srrc = h_srrc/sqrt(hsrrc_energy); %normalized power of the filter
 for i = 1 : numel(N0)
     % noise samples
     noise = sqrt(P_noise(i)) * randn(1, numel(PSLC)); %created noise vector
-    
-    P_noise(i) = (sum(noise.*noise))/numel(noise);  %power of the noise 
-    % Signal to Noise Relation
-    SNR_D(i) = P_PSLC_d(1)./P_noise(1);     %Signal to noise ratio 
-    % SNR in dB
-    SNR_D_dB(i) = 10*log10(SNR_D(i));       %signal to niose ratio in dB 
     
     % Add up noise to the signal
     PSLC_noised = PSLC + noise;
