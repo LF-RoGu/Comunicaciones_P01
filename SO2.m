@@ -1,4 +1,4 @@
-%% P01_705694
+%% P01_705694_705694
 
 close all; clc; clear;
 
@@ -117,27 +117,29 @@ h_srrc = h_srrc/sqrt(hsrrc_energy); %Normalized power of the filter
 %We need to add up noise, filtered, and recover the information inside a for loop because each
 %iteration represent one noise power, so is diferent eveery time. 
 for i = 1 : numel(N0) 
-    % noise samples
+        %noise samples
     noise = sqrt(P_noise(i)) * randn(1, numel(PSLC)); %created noise vector
-    
     
     PSLC_noised = PSLC + noise; % Add up noise to the signal
     
     % filtered line code + noise with the 15kh LPF
 
-%figure; stem(PSLC(1:mp*10));
+    %figure; stem(PSLC_noised(1:mp*10));
 
+        %Conv function between the filter and the signal with AWGN
     PRS_rx = conv(LPF,PSLC_noised); %PSRS (Polar Received Signal)
-%%figure; pwelch(PRS_rx,500,300,500,Fs,'power'); title('Polar Fc 0.6803');
+    %%figure; pwelch(PRS_rx,500,300,500,Fs,'power'); title('Polar Fc 0.6803');
 
-%%figure; plot(PSLC(1:mp*20)); hold on; plot(PRS_rx(1:mp*20));
+    %%figure; plot(PSLC(1:mp*20)); hold on; plot(PRS_rx(1:mp*20));
 
-    %filtered the recieved line code in the match filter
+        %filtered the recieved line code in the match filter
     match_filter_recived = conv(h_srrc,PRS_rx);
     
-    %make the sampling and desition of the line code recived
- % Tenemos order/2 + y - por el retardo del order del filtro
-% Take a sample each mp/2 in time domain to recover the data
+    %Wake the sampling and desition of the line code recived.
+    %We have order/2 for the filter delay.
+    %We have mp/2 for the mp size, so we can get the signal in the middle
+    %of the signal.
+    %Take a sample each mp/2 in time domain to recover the data.
     rx_match_filter = match_filter_recived( ( mp/2 + ((order/2)+(numel(p)/2)) : mp : (end - ((order/2)+(numel(p)/2)))));
 
 %en este punto, se obtiene la información recivada y pasada por el filtro
@@ -146,10 +148,14 @@ for i = 1 : numel(N0)
     audio_rx = sign(rx_match_filter); %Obtenemos valores entre 1 y -1 del arreglo
 
     bits_rx = (audio_rx+1)/2; %Normalizamos para que los valores sean 1 o 0
-
+        %Por error de acoplamiento de la señal original, eliminamos las
+        %primeras 4 muestras y las 3 ultimas.
+        %Antes de esto teniamos error de 50% (por estadistica, pues esta
+        %bien y mal), despues de arreglar esto, el error fue del 8%
     bits_rx = bits_rx(4:end - 3);
     bits_rx = bits_rx';
-
+        %Checksum de la señal original y la recuperada, obtenemos error del
+        %8%
     error = (sum( xor(bits_tx,bits_rx) ) / numel(bits_rx))*100;
 
 %Convert vector to mat
@@ -218,4 +224,3 @@ SNR_D_dB_2 = 10*log10(SNR_D_2); % SNR en dB
 % comprobacion del n0 
 SNR_D_3 = 1/0.03162;
 SNR_D3_dB_3 = 10*log10(SNR_D_3);
-
