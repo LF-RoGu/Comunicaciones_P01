@@ -16,7 +16,7 @@ info_bps = info.BitsPerSample; %info_bps (info_bits per sample)
 %Signal to Mono
 xMono = (x(:,1)+ x(:,2))/2; %convert audio stero to audio mono
 
-%% Filtrar la seÃ±al 
+%% Filtrar la señal 
     %LPF Comunication Channel  
 B = 15e3; %band pass of filter
 Fc = B / (Fs_audio/2); %Normalized Freq 0.6803
@@ -64,7 +64,6 @@ b = de2bi(xMono2bi,info_bps,'left-msb');    %pass decimal to binari
 b = b'; %Transponse operation
 bits_tx = b(:); %Concatenate the rest of the bits, to make it a single vector
 
-
 %This goes if beta it is equal to ZERO
 %B = 15e3;
 %Rb_max = B2*2;
@@ -75,10 +74,11 @@ Fs = 96e3;
 Rb = (2*B) / (1+beta); 
 Ts = 1/Fs; 
 mp = ceil(Fs/Rb); %mp = 5;
-Tp = mp*Ts; 
+Tp = 1/(Fs/mp); 
 energy = Tp; 
 
 [p,t] = rcpulse(beta, D, Tp, Ts, 'srrc', energy); %Genetare
+%stem(p);
 p_energy = Ts*sum(p.*p);    %Calculate the power of the SRRC pulse
 p = p/sqrt(p_energy); %Unitari Normalization of SRRC pulse power
 %% Code Line
@@ -90,9 +90,13 @@ s = zeros(1,numel(PS_s)*mp);    %Vector with the total size
 s(1:mp:end) = PS_s;     %Impulse train
 PSLC = conv(PBP, s) / mp; %PSLC (Polar Signal Line Code), Pulse train 
 
+%plot(PSLC(1:mp*20));
+
     %Normilize pulse
 PSLC = PSLC/sqrt( sum(PSLC.*PSLC)/numel(PSLC) ); %Unitari Normalization of Line code power
 P_PSLC_d = var(PSLC); %Power of Line code digital
+
+
 
 
 %% SNR Digital 
@@ -117,6 +121,7 @@ h_srrc = h_srrc/sqrt(hsrrc_energy); %Normalized power of the filter
 %We need to add up noise, filtered, and recover the information inside a for loop because each
 %iteration represent one noise power, so is diferent eveery time. 
 for i = 1 : numel(N0) 
+    
         %noise samples
     noise = sqrt(P_noise(i)) * randn(1, numel(PSLC)); %created noise vector
     
@@ -124,13 +129,19 @@ for i = 1 : numel(N0)
     
     % filtered line code + noise with the 15kh LPF
 
-    %figure; stem(PSLC_noised(1:mp*10));
-
         %Conv function between the filter and the signal with AWGN
     PRS_rx = conv(LPF,PSLC_noised); %PSRS (Polar Received Signal)
-    %%figure; pwelch(PRS_rx,500,300,500,Fs,'power'); title('Polar Fc 0.6803');
+   %figure; pwelch(PRS_rx,500,300,500,Fs,'power'); title('Polar Fc 0.6803');
 
-    %%figure; plot(PSLC(1:mp*20)); hold on; plot(PRS_rx(1:mp*20));
+    filename_t = strcat('PSLC', num2str(i), '_', num2str(round(SNR_A_dB(i)), 4), 'dB','.wav');
+    
+    figure; 
+    stem(PSLC_noised(1:mp*10));
+    hold on;
+    plot(PSLC(1:mp*20));title(filename_t); 
+    hold on; 
+    plot(PRS_rx(1:mp*20));
+    legend('PSLC_noised','PSLC','PRS_rx');
 
         %filtered the recieved line code in the match filter
     match_filter_recived = conv(h_srrc,PRS_rx);
@@ -142,19 +153,18 @@ for i = 1 : numel(N0)
     %Take a sample each mp/2 in time domain to recover the data.
     rx_match_filter = match_filter_recived( ( mp/2 + ((order/2)+(numel(p)/2)) : mp : (end - ((order/2)+(numel(p)/2)))));
 
-%en este punto, se obtiene la informaciÃ³n recivada y pasada por el filtro
-%que emula el canal y el match filter (recepcion) 
-%% 
+%en este punto, se obtiene la información recivada y pasada por el filtro
+%que emula el canal y el match filter (recepcion)  
     audio_rx = sign(rx_match_filter); %Obtenemos valores entre 1 y -1 del arreglo
 
     bits_rx = (audio_rx+1)/2; %Normalizamos para que los valores sean 1 o 0
-        %Por error de acoplamiento de la seÃ±al original, eliminamos las
+        %Por error de acoplamiento de la señal original, eliminamos las
         %primeras 4 muestras y las 3 ultimas.
         %Antes de esto teniamos error de 50% (por estadistica, pues esta
         %bien y mal), despues de arreglar esto, el error fue del 8%
     bits_rx = bits_rx(4:end - 3);
     bits_rx = bits_rx';
-        %Checksum de la seÃ±al original y la recuperada, obtenemos error del
+        %Checksum de la señal original y la recuperada, obtenemos error del
         %8%
     error = (sum( xor(bits_tx,bits_rx) ) / numel(bits_rx))*100;
 
@@ -188,6 +198,13 @@ match_filter_recived = match_filter_recived';
 %Eye Pattern Received Signal
 EP(match_filter_recived);
 
+EP = comm.EyeDiagram('SampleRate',Fs*mp,'SamplesPerSymbol',mp);
+
+PRS_rx = PRS_rx';
+%Eye Pattern Received Signal
+EP(PRS_rx);
+
+
 %% 
 
 audio_rx = sign(rx_match_filter); %Obtenemos valores entre 1 y -1 del arreglo
@@ -217,7 +234,7 @@ B_2 = 476280;
 %N0_2 = 1./(B_2.*10.^(0:0.3:3)); % Vector PSD del ruido
 P_noise_d_2 = B_2*N0; % Vector de Pot del Ruido Filtrado
 P_noise_dB_d_2 = 10.*log10(P_noise_d_2); % Pot. Ruido en Decibeles
-SNR_D_2 = P_PSLC_d ./ P_noise_d_2; % Relacion SeÃ±al a Ruido
+SNR_D_2 = P_PSLC_d ./ P_noise_d_2; % Relacion Señal a Ruido
 SNR_D_dB_2 = 10*log10(SNR_D_2); % SNR en dB
 
 %% Ejercicio 3 
